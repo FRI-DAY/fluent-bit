@@ -34,12 +34,14 @@ set(src
   flb_worker.c
   flb_time.c
   flb_sosreport.c
+  flb_parser_logfmt.c
   )
 
 include_directories(
   .
   ../lib/
   ../lib/jsmn
+  ../lib/logfmt
   ../lib/msgpack-c-0b7cabd/include
   ../lib/monkey/include/
   ${extra_headers}
@@ -51,6 +53,7 @@ if(FLB_REGEX)
     flb_parser.c
     flb_parser_regex.c
     flb_parser_json.c
+    flb_parser_logfmt.c
     flb_parser_decoder.c
     )
 endif()
@@ -183,6 +186,7 @@ set(FLB_DEPS
   ${FLB_DEPS}
   mk_core
   jsmn
+  logfmt
   msgpackc-static
   ${FLB_PLUGINS}
   ${FLB_PROXY_PLUGINS}
@@ -219,6 +223,8 @@ if(FLB_BUFFERING)
   target_link_libraries(fluent-bit-static sha1)
 endif()
 
+target_link_libraries(fluent-bit-static logfmt)
+
 # Binary / Executable
 if(NOT FLB_WITHOUT_BIN)
   find_package (Threads)
@@ -227,6 +233,8 @@ if(NOT FLB_WITHOUT_BIN)
   if(FLB_JEMALLOC)
     target_link_libraries(fluent-bit-bin libjemalloc)
   endif()
+
+    target_link_libraries(fluent-bit-bin logfmt)
 
   if(FLB_BACKTRACE)
     target_link_libraries(fluent-bit-bin libbacktrace)

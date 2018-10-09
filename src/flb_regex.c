@@ -114,6 +114,7 @@ struct flb_regex *flb_regex_create(unsigned char *pattern)
 ssize_t flb_regex_do(struct flb_regex *r, unsigned char *str, size_t slen,
                      struct flb_regex_search *result)
 {
+    printf("!%s\n", str);
     int ret;
     unsigned char *start;
     unsigned char *end;

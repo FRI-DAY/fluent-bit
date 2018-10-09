@@ -30,6 +30,7 @@
 
 #include <msgpack.h>
 #include <jsmn/jsmn.h>
+#include <logfmt/logfmt.h>
 
 #define try_to_write_str  flb_utils_write_str
 
@@ -167,6 +168,141 @@ static char *tokens_to_msgpack(char *js,
     msgpack_sbuffer_destroy(&sbuf);
 
     return buf;
+}
+
+
+void count_fields(logfmt_field_t *field, void* data) {
+
+    int* n = (int*)data;
+    (*n)++;
+
+    printf("plus a field\n");
+
+}
+
+
+void write_fields(logfmt_field_t* field, void* data) {
+
+    msgpack_packer* packer = (msgpack_packer*)data;
+
+    msgpack_pack_str(packer, field->name_len);
+    msgpack_pack_str_body(packer, field->name, field->name_len);
+
+    switch (field->type) {
+        case LOGFMT_STRING:
+            printf("  \e[34m%.*s\e[0m: '%.*s'", (int)field->name_len, field->name,
+                   (int)field->string_len, field->value.as_string);
+            msgpack_pack_str(packer, field->string_len);
+            msgpack_pack_str_body(packer, field->value.as_string, field->string_len);
+            break;
+        case LOGFMT_FLOAT:
+            printf("  \e[34m%.*s\e[0m: %.2f", (int)field->name_len, field->name,
+                   field->value.as_float);
+            msgpack_pack_float(packer, field->value.as_float);
+            break;
+        case LOGFMT_INT:
+            printf("  \e[34m%.*s\e[0m: %lld", (int)field->name_len, field->name,
+                   field->value.as_int);
+            msgpack_pack_int64(packer, field->value.as_int);
+            break;
+        case LOGFMT_BOOL:
+            printf("  \e[34m%.*s\e[0m: %s", (int)field->name_len, field->name,
+                   field->value.as_bool ? "true" : "false");
+            if (field->value.as_bool) {
+                msgpack_pack_true(packer);
+            } else {
+                msgpack_pack_false(packer);
+            }
+            break;
+    }
+}
+
+
+
+/* Receive a tokenized JSON message and convert it to MsgPack */
+static char *logfmt_to_msgpack(char *js, int *out_size,
+                               int *last_byte)
+{
+    char *buf;
+    msgpack_packer pck;
+    msgpack_sbuffer sbuf;
+
+    /* initialize buffers */
+    msgpack_sbuffer_init(&sbuf);
+    msgpack_packer_init(&pck, &sbuf, msgpack_sbuffer_write);
+
+    printf("%s\n", js);
+
+    int count = 0;
+    if (logfmt_parse(js, strlen(js), count_fields, &count) < 0) {
+        fprintf(stderr, "Error: failed to parse\n");
+        return NULL;
+    }
+    msgpack_pack_map(&pck, count);
+
+    if (logfmt_parse(js, strlen(js), write_fields, &pck) < 0) {
+        fprintf(stderr, "Error: failed to parse\n");
+        return NULL;
+    }
+
+
+    /* dump data back to a new buffer */
+    *out_size = sbuf.size;
+    buf = flb_malloc(sbuf.size);
+    if (!buf) {
+        flb_errno();
+        msgpack_sbuffer_destroy(&sbuf);
+        return NULL;
+    }
+
+    memcpy(buf, sbuf.data, sbuf.size);
+    msgpack_sbuffer_destroy(&sbuf);
+
+    return buf;
+}
+
+//typedef struct FieldList {
+//    logfmt_field_t *field;
+//    FieldList *next;
+//} FieldList;
+
+
+/*
+ * It parse a JSON string and convert it to MessagePack format, this packer is
+ * useful when a complete JSON message exists, otherwise it will fail until
+ * the message is complete.
+ *
+ * This routine do not keep a state in the parser, do not use it for big
+ * JSON messages.
+ */
+int flb_pack_logfmt(char *js, size_t len, char **buffer, size_t *size)
+{
+    int ret = -1;
+    int out;
+    char *buf = NULL;
+    struct flb_pack_state state;
+
+    ret = flb_pack_state_init(&state);
+    if (ret != 0) {
+        return -1;
+    }
+
+
+    int last;
+    buf = logfmt_to_msgpack(js, &out, &last);
+    if (!buf) {
+        ret = -1;
+        goto flb_pack_json_end;
+    }
+
+    *size = out;
+    *buffer = buf;
+
+    ret = 0;
+
+ flb_pack_json_end:
+    flb_pack_state_reset(&state);
+    return ret;
 }
 
 /*

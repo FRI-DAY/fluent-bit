@@ -211,6 +211,7 @@ add_subdirectory(lib/msgpack-2.1.3 EXCLUDE_FROM_ALL)
 FLB_DEFINITION(JSMN_PARENT_LINKS)
 FLB_DEFINITION(JSMN_STRICT)
 add_subdirectory(lib/jsmn)
+add_subdirectory(lib/logfmt)
 
 if(FLB_BUFFERING)
   add_subdirectory(lib/sha1)
@@ -479,7 +480,7 @@ add_subdirectory(plugins)
 add_subdirectory(src)
 
 if(NOT FLB_WITHOUT_EXAMPLES)
-  add_subdirectory(examples)
+  #add_subdirectory(examples)
 endif()
 
 if(FLB_TESTS_RUNTIME)
